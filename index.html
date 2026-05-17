@@ -91,9 +91,10 @@
     </div>
     <div class="date-range-wrap">
       <select class="day-select" id="day-range" onchange="onRangeChange()">
+        <option value="currentmonth" selected>Current Month</option>
         <option value="7">Last 7 days</option>
         <option value="14">Last 14 days</option>
-        <option value="30" selected>Last 30 days</option>
+        <option value="30">Last 30 days</option>
         <option value="60">Last 60 days</option>
         <option value="90">Last 90 days</option>
         <option value="custom">Custom range…</option>
@@ -109,9 +110,9 @@
 
   <!-- Stat Cards -->
   <div class="stats-grid">
-    <div class="stat-card" style="--accent-c:#34d399">
+    <div class="stat-card" style="--accent-c:#34d399;cursor:pointer;transition:border-color var(--tr),transform var(--tr)" onclick="openDayModal(today())" title="Click to see today's expenses">
       <div class="stat-card-icon">🌅</div>
-      <div class="stat-card-label">Today Spent</div>
+      <div class="stat-card-label">Today Spent <span style="font-size:9px;opacity:0.6;font-weight:400;margin-left:4px">↗ tap</span></div>
       <div class="stat-card-value c-success" id="s-today">₹0</div>
       <div class="stat-card-sub" id="s-today-sub">0 transactions</div>
     </div>
@@ -347,6 +348,7 @@
     <div class="settings-section-sub">Export a backup or import a previous one. Your data stays in your browser.</div>
     <div class="backup-row">
       <button class="backup-btn2 export" onclick="exportData()">⬇️ Export JSON Backup</button>
+      <button class="backup-btn2 export" onclick="exportPDF()" style="border-color:rgba(124,106,245,0.4)" onmouseover="this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)';this.style.background='rgba(124,106,245,0.06)'" onmouseout="this.style.borderColor='rgba(124,106,245,0.4)';this.style.color='';this.style.background=''">📄 Export PDF Report</button>
       <button class="backup-btn2 import" onclick="openImportModal()">⬆️ Import Backup</button>
       <button class="backup-btn2 danger" onclick="resetAllData()">🗑️ Reset All Data</button>
     </div>

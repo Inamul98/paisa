@@ -146,6 +146,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text1);min-height:
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--accent-c,var(--accent)),transparent);opacity:0.6}
 .stat-card:hover{border-color:var(--border2)}
+.stat-card[onclick]:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,212,170,0.12)}
 .stat-card-label{font-size:10px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:var(--text3);margin-bottom:8px}
 .stat-card-value{font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-0.5px;color:var(--text1)}
 .stat-card-value.c-success{color:var(--success)}

@@ -36,10 +36,21 @@ const save  = () => {
 };
 
 /* ── Date Range Helpers ── */
-function currentDayRange(){ return parseInt(document.getElementById('day-range').value)||30; }
+function currentDayRange(){
+  const val = document.getElementById('day-range').value;
+  if(val==='currentmonth'||val==='custom') return 30; // fallback for calcs that need a number
+  return parseInt(val)||30;
+}
 
 function getDashRange(){
   if(dashFrom && dashTo) return { from: dashFrom, to: dashTo };
+  const val = document.getElementById('day-range').value;
+  if(val === 'currentmonth'){
+    const now = new Date();
+    const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+    const lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(lastDay).padStart(2,'0')}` };
+  }
   const days = currentDayRange();
   const cut  = new Date(); cut.setDate(cut.getDate()-days);
   return { from: cut.toISOString().split('T')[0], to: today() };
@@ -513,13 +524,19 @@ function renderTop5(){
     :'<div style="font-size:13px;color:var(--text3);padding:12px 0">No data for this period</div>';
 
   el.innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:16px">
       <div class="chart-card">
-        <div class="chart-card-header" style="margin-bottom:12px"><div class="chart-card-title">🏆 Top 5 Transactions</div></div>
+        <div class="chart-card-header" style="margin-bottom:14px">
+          <div class="chart-card-title">🏆 Top 5 Transactions</div>
+          <div class="chart-card-sub">Highest single expenses</div>
+        </div>
         ${txnRows}
       </div>
       <div class="chart-card">
-        <div class="chart-card-header" style="margin-bottom:12px"><div class="chart-card-title">📅 Top 5 Spending Days</div></div>
+        <div class="chart-card-header" style="margin-bottom:14px">
+          <div class="chart-card-title">📅 Top 5 Spending Days</div>
+          <div class="chart-card-sub">Click amount to view day detail</div>
+        </div>
         ${dayRows}
       </div>
     </div>`;
@@ -536,10 +553,13 @@ function renderHeatmap(){
   expenses.forEach(e=>{dayMap[e.date]=(dayMap[e.date]||0)+e.amount;});
   const vals=Object.values(dayMap).filter(v=>v>0);
   const maxVal=vals.length?Math.max(...vals):1;
-  const p75=vals.length?vals.sort((a,b)=>a-b)[Math.floor(vals.length*.75)]:maxVal;
+  const sortedVals=[...vals].sort((a,b)=>a-b);
+  const p75=sortedVals.length?sortedVals[Math.floor(sortedVals.length*.75)]:maxVal;
 
+  // Detect light mode for empty cell color
+  const emptyColor = document.body.classList.contains('light') ? '#e2e8f0' : '#1e2229';
   function heatColor(amt){
-    if(!amt||amt===0) return 'var(--bg3)';
+    if(!amt||amt===0) return emptyColor;
     const intensity=Math.min(amt/p75,1);
     if(intensity<0.15) return '#0e3d2e';
     if(intensity<0.35) return '#1a6b50';
@@ -604,7 +624,7 @@ function renderHeatmap(){
   const legend=`<div class="heatmap-legend">
     <span>Less</span>
     <div class="heatmap-legend-squares">
-      ${['var(--bg3)','#0e3d2e','#1a6b50','#209e74','#00d4aa'].map(c=>`<div class="heatmap-legend-sq" style="background:${c}"></div>`).join('')}
+      ${[emptyColor,'#0e3d2e','#1a6b50','#209e74','#00d4aa'].map(c=>`<div class="heatmap-legend-sq" style="background:${c}"></div>`).join('')}
     </div>
     <span>More</span>
   </div>`;
