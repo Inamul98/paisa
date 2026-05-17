@@ -328,6 +328,7 @@ function renderDashboard(){
   drawPayChart(payTotals);
   renderBudgetSection();
   renderForecast();
+  renderTrends(trends);
   renderTop5();
   renderHeatmap();
   renderInsights(data, catTotals, payTotals, days);
@@ -375,6 +376,68 @@ function calcTrends(){
   const monthPct = lastMonTotal>0 ? ((thisMonTotal-lastMonTotal)/lastMonTotal*100) : null;
 
   return {weekPct, monthPct, thisWeekTotal, lastWeekTotal, thisMonTotal, lastMonTotal};
+}
+
+/* ── Render Spending Trends Card ── */
+function renderTrends(trends){
+  const el = document.getElementById('trends-detail'); if(!el) return;
+  const now = new Date();
+  const dow = (now.getDay()+6)%7;
+  const thisMonStart = new Date(now); thisMonStart.setDate(now.getDate()-dow);
+  const twStr = `${thisMonStart.getFullYear()}-${String(thisMonStart.getMonth()+1).padStart(2,'0')}-${String(thisMonStart.getDate()).padStart(2,'0')}`;
+  const curMonKey = today().slice(0,7);
+  const lastMonth = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth()+1).padStart(2,'0')}`;
+  const thisMonName = now.toLocaleDateString('en-IN',{month:'long'});
+  const lastMonName = lastMonth.toLocaleDateString('en-IN',{month:'long'});
+
+  function trendBlock(label, current, previous, pct, period1, period2){
+    const hasData = previous > 0;
+    const arrow   = !hasData ? '—' : pct > 5 ? '▲' : pct < -5 ? '▼' : '~';
+    const color   = !hasData ? 'var(--text3)' : pct > 5 ? 'var(--danger)' : pct < -5 ? 'var(--success)' : 'var(--text3)';
+    const msg     = !hasData ? 'No previous data to compare'
+                  : pct > 5  ? `Spending up ${Math.abs(pct).toFixed(1)}% vs ${period2}`
+                  : pct < -5 ? `Spending down ${Math.abs(pct).toFixed(1)}% vs ${period2}`
+                  : `Stable — within 5% of ${period2}`;
+    const barMaxW = Math.max(current, previous) || 1;
+    const curW    = Math.round(current/barMaxW*100);
+    const prevW   = Math.round(previous/barMaxW*100);
+    return `
+      <div style="background:var(--bg2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">${label}</div>
+          <div style="font-size:13px;font-weight:700;color:${color}">${arrow} ${hasData?Math.abs(pct).toFixed(1)+'%':'—'}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">${period1}</div>
+            <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text1)">${fmt(current)}</div>
+            <div style="margin-top:5px;height:4px;background:var(--bg3);border-radius:99px;overflow:hidden">
+              <div style="height:100%;width:${curW}%;background:var(--accent);border-radius:99px;transition:width .5s ease"></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">${period2}</div>
+            <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text3)">${fmt(previous)}</div>
+            <div style="margin-top:5px;height:4px;background:var(--bg3);border-radius:99px;overflow:hidden">
+              <div style="height:100%;width:${prevW}%;background:var(--text3);border-radius:99px;transition:width .5s ease"></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:${color};display:flex;align-items:center;gap:5px">
+          <span>${arrow !== '—' ? arrow : 'ℹ'}</span>
+          <span>${msg}</span>
+        </div>
+      </div>`;
+  }
+
+  el.innerHTML =
+    trendBlock('Week over Week',
+      trends.thisWeekTotal, trends.lastWeekTotal, trends.weekPct,
+      'This week', 'Last week') +
+    trendBlock('Month over Month',
+      trends.thisMonTotal, trends.lastMonTotal, trends.monthPct,
+      thisMonName, lastMonName);
 }
 
 /* ── Budget Section ── */
@@ -548,47 +611,82 @@ function renderHeatmap(){
 
   const now=new Date();
   const WEEKS=53;
-  // Build day→amount map
+  // Build day→amount map — normalize date keys defensively
   const dayMap={};
-  expenses.forEach(e=>{dayMap[e.date]=(dayMap[e.date]||0)+e.amount;});
+  expenses.forEach(e=>{
+    if(!e.date) return;
+    // Normalize: ensure format is YYYY-MM-DD with zero-padding
+    const parts = e.date.split('-');
+    if(parts.length !== 3) return;
+    const normalized = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+    dayMap[normalized] = (dayMap[normalized]||0) + e.amount;
+  });
+  console.log('[Heatmap] dayMap keys:', Object.keys(dayMap));
+  console.log('[Heatmap] Total days with data:', Object.keys(dayMap).length);
   const vals=Object.values(dayMap).filter(v=>v>0);
   const maxVal=vals.length?Math.max(...vals):1;
   const sortedVals=[...vals].sort((a,b)=>a-b);
   const p75=sortedVals.length?sortedVals[Math.floor(sortedVals.length*.75)]:maxVal;
 
   // Detect light mode for empty cell color
-  const emptyColor = document.body.classList.contains('light') ? '#e2e8f0' : '#1e2229';
+  const emptyColor = document.body.classList.contains('light') ? '#dde3ed' : '#252a35';
+  // Use p75 as scale reference but ensure any spend > 0 always shows color
   function heatColor(amt){
-    if(!amt||amt===0) return emptyColor;
-    const intensity=Math.min(amt/p75,1);
-    if(intensity<0.15) return '#0e3d2e';
-    if(intensity<0.35) return '#1a6b50';
-    if(intensity<0.55) return '#209e74';
-    if(intensity<0.75) return '#1dbf8c';
+    if(!amt || amt === 0) return emptyColor;
+    const scale = p75 > 0 ? p75 : maxVal;
+    const intensity = Math.min(amt / scale, 1);
+    if(intensity < 0.2)  return '#0a4a36';
+    if(intensity < 0.4)  return '#0f7a58';
+    if(intensity < 0.6)  return '#14a87a';
+    if(intensity < 0.8)  return '#10c98e';
     return '#00d4aa';
   }
 
-  // Start from 52 weeks ago, Monday
-  const startDate=new Date(now);
-  startDate.setDate(startDate.getDate()-(WEEKS*7));
-  const dow=(startDate.getDay()+6)%7;
-  startDate.setDate(startDate.getDate()-dow);
+  // Anchor grid so that TODAY is always visible in the last column.
+  // Strategy: find the Monday of the week that is (WEEKS-1) weeks ago.
+  // This gives us exactly WEEKS columns with today in the rightmost week.
+  const todayStr = today();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const DAY_NAMES=['M','','W','','F','','S'];
-  const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Step 1: find Monday of the current week
+  const todayDow = (todayMidnight.getDay() + 6) % 7; // Mon=0 ... Sun=6
+  const thisMonday = new Date(todayMidnight);
+  thisMonday.setDate(thisMonday.getDate() - todayDow);
 
-  // Build weeks array
-  let weeks=[];
-  let cur=new Date(startDate);
-  for(let w=0;w<WEEKS;w++){
-    let week=[];
-    for(let d=0;d<7;d++){
-      const dateStr=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
-      week.push({date:dateStr,amt:dayMap[dateStr]||0,month:cur.getMonth(),day:cur.getDate(),future:cur>now});
-      cur.setDate(cur.getDate()+1);
+  // Step 2: go back (WEEKS-1) weeks from this Monday — that's our start
+  const startDate = new Date(thisMonday);
+  startDate.setDate(startDate.getDate() - (WEEKS - 1) * 7);
+
+  const DAY_NAMES = ['M','','W','','F','','S'];
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Build weeks array — compare date strings to avoid DST/time issues
+  const weeks = [];
+  const cur = new Date(startDate);
+  const generatedDates = [];
+  for(let w = 0; w < WEEKS; w++){
+    const week = [];
+    for(let d = 0; d < 7; d++){
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth()+1).padStart(2,'0');
+      const day = String(cur.getDate()).padStart(2,'0');
+      const dateStr = `${y}-${m}-${day}`;
+      const amt = dayMap[dateStr] || 0;
+      week.push({
+        date:   dateStr,
+        amt:    amt,
+        month:  cur.getMonth(),
+        day:    cur.getDate(),
+        future: dateStr > todayStr
+      });
+      if(amt > 0) generatedDates.push(dateStr);
+      cur.setDate(cur.getDate() + 1);
     }
     weeks.push(week);
   }
+  console.log('[Heatmap] todayStr:', todayStr);
+  console.log('[Heatmap] Dates with matching expenses in grid:', generatedDates);
+  console.log('[Heatmap] Grid start date:', `${startDate.getFullYear()}-${String(startDate.getMonth()+1).padStart(2,'0')}-${String(startDate.getDate()).padStart(2,'0')}`);
 
   // Month labels
   let monthLabels='<div style="display:flex;gap:3px;margin-bottom:4px;padding-left:18px">';
