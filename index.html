@@ -302,6 +302,37 @@
     </button>
   </div>
 
+  <!-- Install App -->
+  <div class="settings-section" id="install-app-section" style="display:none">
+    <div class="settings-section-title">📲 Install App</div>
+    <div class="settings-section-sub">Install Paisa on your home screen for quick access — works like a native app, no App Store needed.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-sm primary" id="settings-install-btn" onclick="triggerInstall()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;font-size:13px">
+        📲 Install Paisa
+      </button>
+      <div id="install-status" style="font-size:12px;color:var(--text3)"></div>
+    </div>
+    <!-- iOS instructions shown separately -->
+    <div id="ios-install-steps" style="display:none;margin-top:14px;background:var(--bg2);border-radius:var(--r);padding:14px 16px">
+      <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:10px">How to install on iPhone / iPad:</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2)">
+          <span style="background:var(--accent);color:#0a0c0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">1</span>
+          Tap the <strong style="color:var(--text1)">Share</strong> button <span style="font-size:16px">⎙</span> at the bottom of Safari
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2)">
+          <span style="background:var(--accent);color:#0a0c0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">2</span>
+          Scroll down and tap <strong style="color:var(--text1)">"Add to Home Screen"</strong>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2)">
+          <span style="background:var(--accent);color:#0a0c0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">3</span>
+          Tap <strong style="color:var(--text1)">"Add"</strong> — Paisa will appear on your home screen
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text3)">⚠️ Must be opened in Safari — Chrome on iOS does not support installation.</div>
+    </div>
+  </div>
+
   <!-- Budget -->
   <div class="settings-section">
     <div class="settings-section-title">Monthly Budgets</div>
@@ -499,8 +530,20 @@
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     dip = e;
+    window._paisaDip = e; // expose for settings button
     // Small delay so user is settled on the page first
     setTimeout(showInstallBanner, 2500);
+    // Update settings install section
+    updateInstallSection();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    window._paisaDip = null;
+    dip = null;
+    const b = document.getElementById('install-banner');
+    if(b) b.remove();
+    showToast('🎉', 'Paisa installed successfully!');
+    updateInstallSection();
   });
 
   function showInstallBanner(){
@@ -548,11 +591,7 @@
     });
   }
 
-  window.addEventListener('appinstalled', () => {
-    const b = document.getElementById('install-banner');
-    if(b) b.remove();
-    showToast('🎉', 'Paisa installed successfully!');
-  });
+
 
   /* ── iOS Safari Hint ── */
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone;

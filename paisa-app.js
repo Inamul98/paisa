@@ -1160,6 +1160,7 @@ function showMonthDetail(key){
    SETTINGS
 ══════════════════════════════════════════ */
 function renderSettings(){
+  updateInstallSection();
   // Categories
   const cl=document.getElementById('cat-chip-list');
   cl.innerHTML=categories.map((c,i)=>`
@@ -1206,6 +1207,49 @@ function saveBudget(key,val){
   save();
   if(currentPage==='dashboard') renderBudgetSection();
   showToast('✓','Budget updated.');
+}
+
+/* ── PWA Install from Settings ── */
+function updateInstallSection(){
+  const section  = document.getElementById('install-app-section');
+  const btn      = document.getElementById('settings-install-btn');
+  const status   = document.getElementById('install-status');
+  const iosSteps = document.getElementById('ios-install-steps');
+  if(!section) return;
+
+  const isIOS        = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true ||
+                       window.matchMedia('(display-mode: standalone)').matches;
+  const hasDip       = !!window._paisaDip;
+
+  if(isStandalone){ section.style.display='none'; return; }
+
+  section.style.display = 'block';
+
+  if(isIOS){
+    if(btn) btn.style.display = 'none';
+    if(iosSteps) iosSteps.style.display = 'block';
+    if(status) status.textContent = '';
+  } else if(hasDip){
+    if(btn){ btn.style.display='inline-flex'; btn.textContent='📲 Install Paisa'; btn.disabled=false; btn.style.opacity='1'; btn.style.cursor='pointer'; }
+    if(iosSteps) iosSteps.style.display='none';
+    if(status) status.textContent='Tap to add Paisa to your home screen.';
+  } else {
+    if(btn){ btn.style.display='inline-flex'; btn.textContent='📲 Install Paisa'; btn.disabled=true; btn.style.opacity='0.45'; btn.style.cursor='not-allowed'; }
+    if(iosSteps) iosSteps.style.display='none';
+    if(status) status.innerHTML='Not available yet. Visit the site, leave, return after 5 mins — then Install will activate.';
+  }
+}
+
+function triggerInstall(){
+  const dip = window._paisaDip;
+  if(!dip){ showToast('⚠️','Install not ready yet. Visit the site a couple of times first.'); return; }
+  dip.prompt();
+  dip.userChoice.then(result => {
+    if(result.outcome==='accepted') showToast('🎉','Installing Paisa…');
+    window._paisaDip = null;
+    updateInstallSection();
+  });
 }
 
 let catDragIdx=null;
