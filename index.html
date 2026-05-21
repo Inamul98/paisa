@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="Paisa"/>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%230a0c0f'/><text x='256' y='340' font-size='280' text-anchor='middle' fill='%2300d4aa' font-family='serif'>₹</text></svg>"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%230a0c0f'/><text x='256' y='340' font-size='280' text-anchor='middle' fill='%2300d4aa' font-family='serif'>₹</text></svg>"/>
-<link rel="manifest" id="pwa-manifest"/>
+<link rel="manifest" href="manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="paisa-styles.css"/>
 </head>
@@ -43,7 +43,7 @@
   </div>
   <div class="pin-error-msg" id="pin-error"></div>
   <div class="pin-actions">
-    <button class="pin-link" onclick="hidePinScreen()" id="pin-skip-btn">Skip (use without PIN)</button>
+    <button class="pin-link" onclick="hidePinScreen()" id="pin-skip-btn" style="display:none">Skip (use without PIN)</button>
   </div>
 </div>
 
@@ -478,50 +478,112 @@
 
 <script src="paisa-app.js"></script>
 <script>
-/* ── PWA ── */
+/* ── PWA — Service Worker + Install Prompt ── */
 (function initPWA(){
-  function generateIcon(size){
-    const c=document.createElement('canvas'); c.width=c.height=size;
-    const ctx=c.getContext('2d');
-    const g=ctx.createLinearGradient(0,0,size,size); g.addColorStop(0,'#0d1117'); g.addColorStop(1,'#111318');
-    ctx.fillStyle=g; const r=size*.22;
-    ctx.beginPath(); ctx.moveTo(r,0); ctx.lineTo(size-r,0); ctx.quadraticCurveTo(size,0,size,r);
-    ctx.lineTo(size,size-r); ctx.quadraticCurveTo(size,size,size-r,size);
-    ctx.lineTo(r,size); ctx.quadraticCurveTo(0,size,0,size-r);
-    ctx.lineTo(0,r); ctx.quadraticCurveTo(0,0,r,0); ctx.fill();
-    const glow=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size*.45);
-    glow.addColorStop(0,'rgba(0,212,170,.15)'); glow.addColorStop(1,'rgba(0,212,170,0)');
-    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(size/2,size/2,size*.45,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#00d4aa'; ctx.font=`bold ${size*.52}px serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('₹',size/2,size*.52);
-    return c.toDataURL('image/png');
-  }
-  const manifest={name:"Paisa — Expense Manager",short_name:"Paisa",description:"Personal expense manager",start_url:"./",display:"standalone",orientation:"portrait-primary",background_color:"#0a0c0f",theme_color:"#0a0c0f",categories:["finance","productivity"],icons:[{src:generateIcon(192),sizes:"192x192",type:"image/png",purpose:"any maskable"},{src:generateIcon(512),sizes:"512x512",type:"image/png",purpose:"any maskable"}]};
-  const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
-  document.getElementById('pwa-manifest').href=URL.createObjectURL(blob);
+
+  /* ── Register Service Worker from sw.js ── */
   if('serviceWorker' in navigator){
-    const proto=location.protocol, host=location.hostname;
-    if(proto==='https:'||(proto==='http:'&&(host==='localhost'||host==='127.0.0.1'))){
-      const sw=`const C='paisa-v2';self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.add(self.registration.scope)).then(()=>self.skipWaiting()).catch(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.match(e.request).then(cached=>{const fp=fetch(e.request).then(r=>{if(r&&r.status===200){const cl=r.clone();caches.open(C).then(c=>c.put(e.request,cl))}return r}).catch(()=>cached);return cached||fp;}))});`;
-      navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'})),{scope:'./'}).then(r=>console.log('[Paisa] SW registered',r.scope)).catch(()=>{});
-    } else { console.log('[Paisa] SW skipped — requires https/localhost'); }
+    const proto = location.protocol, host = location.hostname;
+    const supported = proto==='https:' || (proto==='http:' && (host==='localhost'||host==='127.0.0.1'));
+    if(supported){
+      navigator.serviceWorker.register('./sw.js', { scope: './' })
+        .then(r => console.log('[Paisa] SW registered:', r.scope))
+        .catch(e => console.log('[Paisa] SW failed:', e.message));
+    } else {
+      console.log('[Paisa] SW skipped — requires https/localhost');
+    }
   }
-  window.addEventListener('beforeinstallprompt',e=>{
-    e.preventDefault(); const dip=e;
-    const banner=document.createElement('div');
-    banner.id='install-banner';
-    banner.style.cssText=`position:fixed;bottom:${window.innerWidth<=640?'80px':'20px'};left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#0d1117,#1a1e28);border:1px solid rgba(0,212,170,.3);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:9998;max-width:340px;width:calc(100% - 32px);animation:slideUpBanner .3s ease both`;
-    banner.innerHTML=`<style>@keyframes slideUpBanner{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}</style><div style="width:40px;height:40px;background:linear-gradient(135deg,#00d4aa,#00a88a);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">₹</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#f0f2f7">Install Paisa</div><div style="font-size:11px;color:#8b92a5;margin-top:2px">Add to home screen</div></div><button onclick="dip.prompt();dip.userChoice.then(r=>{if(r.outcome==='accepted')banner.remove()});banner.remove()" style="background:linear-gradient(135deg,#00d4aa,#00a88a);border:none;border-radius:8px;color:#0a0c0f;font-size:12px;font-weight:600;padding:8px 14px;cursor:pointer">Install</button><button onclick="banner.remove()" style="background:none;border:none;color:#555c70;cursor:pointer;font-size:18px;line-height:1;padding:4px">×</button>`;
-    document.body.appendChild(banner);
+
+  /* ── Android/Chrome Install Banner ── */
+  let dip = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    dip = e;
+    // Small delay so user is settled on the page first
+    setTimeout(showInstallBanner, 2500);
   });
-  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.navigator.standalone;
-  if(isIOS) setTimeout(()=>{
-    const hint=document.createElement('div');
-    hint.style.cssText=`position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1e28;border:1px solid rgba(0,212,170,.25);border-radius:14px;padding:14px 18px;font-size:13px;color:#8b92a5;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:9998;max-width:300px;width:calc(100% - 32px)`;
-    hint.innerHTML=`<div style="font-size:22px;margin-bottom:8px">📲</div><div style="color:#f0f2f7;font-weight:600;margin-bottom:6px">Add to Home Screen</div>Tap <strong style="color:#00d4aa">Share ⎙</strong> then <strong style="color:#00d4aa">"Add to Home Screen"</strong><br/><br/><button onclick="this.parentElement.remove()" style="background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);border-radius:8px;color:#00d4aa;font-size:12px;padding:6px 16px;cursor:pointer;font-family:inherit">Got it</button>`;
-    document.body.appendChild(hint);
-    setTimeout(()=>hint.remove(),9000);
-  },4000);
+
+  function showInstallBanner(){
+    if(document.getElementById('install-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'install-banner';
+    banner.style.cssText = `
+      position:fixed;
+      bottom:${window.innerWidth<=640?'80px':'24px'};
+      left:50%;transform:translateX(-50%);
+      background:linear-gradient(135deg,#0d1117,#1a1e28);
+      border:1px solid rgba(0,212,170,.35);
+      border-radius:16px;padding:14px 18px;
+      display:flex;align-items:center;gap:12px;
+      box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(0,212,170,.08);
+      z-index:9998;max-width:340px;width:calc(100% - 32px);
+      animation:slideUpBanner .3s cubic-bezier(.4,0,.2,1) both;
+    `;
+    banner.innerHTML = `
+      <style>
+        @keyframes slideUpBanner{
+          from{opacity:0;transform:translateX(-50%) translateY(20px)}
+          to  {opacity:1;transform:translateX(-50%) translateY(0)}
+        }
+      </style>
+      <div style="width:42px;height:42px;background:linear-gradient(135deg,#00d4aa,#00a88a);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;font-weight:700;color:#0a0c0f">₹</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#f0f2f7">Install Paisa</div>
+        <div style="font-size:11px;color:#8b92a5;margin-top:2px">Add to home screen for quick access</div>
+      </div>
+      <button id="pwa-install-btn" style="background:linear-gradient(135deg,#00d4aa,#00a88a);border:none;border-radius:9px;color:#0a0c0f;font-size:12px;font-weight:700;padding:9px 16px;cursor:pointer;white-space:nowrap;flex-shrink:0">Install</button>
+      <button onclick="this.closest('#install-banner').remove()" style="background:none;border:none;color:#555c70;cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0">×</button>
+    `;
+    document.body.appendChild(banner);
+    document.getElementById('pwa-install-btn').addEventListener('click', () => {
+      if(!dip) return;
+      dip.prompt();
+      dip.userChoice.then(result => {
+        if(result.outcome === 'accepted'){
+          showToast('🎉', 'Paisa installed! Find it on your home screen.');
+        }
+        banner.remove();
+        dip = null;
+      });
+    });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    const b = document.getElementById('install-banner');
+    if(b) b.remove();
+    showToast('🎉', 'Paisa installed successfully!');
+  });
+
+  /* ── iOS Safari Hint ── */
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone;
+  if(isIOS){
+    setTimeout(() => {
+      const hint = document.createElement('div');
+      hint.style.cssText = `
+        position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+        background:#1a1e28;border:1px solid rgba(0,212,170,.25);
+        border-radius:16px;padding:18px 20px;
+        font-size:13px;color:#8b92a5;text-align:center;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+        z-index:9998;max-width:300px;width:calc(100% - 32px);
+        animation:slideUpBanner .3s ease both;
+      `;
+      hint.innerHTML = `
+        <div style="font-size:28px;margin-bottom:10px">📲</div>
+        <div style="color:#f0f2f7;font-weight:600;font-size:15px;margin-bottom:8px">Install Paisa</div>
+        <div style="line-height:1.7">
+          Tap <strong style="color:#00d4aa">Share</strong>
+          <span style="font-size:15px"> ⎙ </span>
+          then tap<br/>
+          <strong style="color:#00d4aa">"Add to Home Screen"</strong>
+        </div>
+        <button onclick="this.parentElement.remove()" style="margin-top:14px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);border-radius:9px;color:#00d4aa;font-size:13px;font-weight:500;padding:8px 24px;cursor:pointer;font-family:inherit;width:100%">Got it</button>
+      `;
+      document.body.appendChild(hint);
+      setTimeout(() => hint.remove(), 12000);
+    }, 3500);
+  }
+
 })();
 </script>
 </body>

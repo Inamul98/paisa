@@ -52,8 +52,9 @@ function getDashRange(){
     return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(lastDay).padStart(2,'0')}` };
   }
   const days = currentDayRange();
-  const cut  = new Date(); cut.setDate(cut.getDate()-days);
-  return { from: cut.toISOString().split('T')[0], to: today() };
+  const cut = new Date(); cut.setDate(cut.getDate()-days);
+  const y=cut.getFullYear(),mo=String(cut.getMonth()+1).padStart(2,'0'),d=String(cut.getDate()).padStart(2,'0');
+  return { from: `${y}-${mo}-${d}`, to: today() };
 }
 
 function getDashData(){
@@ -273,8 +274,8 @@ function checkBudgetAlert(catName, dateStr){
   if(overallBudget){
     const totalSpent = expenses.filter(e=>e.date.startsWith(curMonthKey)).reduce((s,e)=>s+e.amount,0);
     const opct = totalSpent/overallBudget*100;
-    if(opct>=100 && Math.round(opct)===100) showToast('🔴',`Monthly budget exceeded! ${fmt(totalSpent)} of ${fmt(overallBudget)}`);
-    else if(opct>=90 && opct<91) showToast('🟠',`Monthly budget at 90%! ${fmt(totalSpent)} of ${fmt(overallBudget)}`);
+    if(opct>=100) showToast('🔴',`Monthly budget exceeded! ${fmt(totalSpent)} of ${fmt(overallBudget)} (${Math.round(opct)}%)`);
+    else if(opct>=90) showToast('🟠',`Monthly budget at 90%+! ${fmt(totalSpent)} of ${fmt(overallBudget)}`);
   }
 }
 
@@ -354,9 +355,10 @@ function calcTrends(){
   const thisMonStart=new Date(now); thisMonStart.setDate(now.getDate()-dow);
   const lastMonStart=new Date(thisMonStart); lastMonStart.setDate(thisMonStart.getDate()-7);
   const lastMonEnd=new Date(thisMonStart); lastMonEnd.setDate(thisMonStart.getDate()-1);
-  const twStr=thisMonStart.toISOString().split('T')[0];
-  const lwStr=lastMonStart.toISOString().split('T')[0];
-  const lwEndStr=lastMonEnd.toISOString().split('T')[0];
+  const toLocalStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const twStr=toLocalStr(thisMonStart);
+  const lwStr=toLocalStr(lastMonStart);
+  const lwEndStr=toLocalStr(lastMonEnd);
 
   const thisWeekTotal=expenses.filter(e=>e.date>=twStr&&e.date<=td).reduce((s,e)=>s+e.amount,0);
   const lastWeekTotal=expenses.filter(e=>e.date>=lwStr&&e.date<=lwEndStr).reduce((s,e)=>s+e.amount,0);
@@ -365,7 +367,7 @@ function calcTrends(){
   // Month: this month vs last month (prorated by days elapsed)
   const curMonKey=td.slice(0,7);
   const lastMonth=new Date(now.getFullYear(),now.getMonth()-1,1);
-  const lastMonKey=lastMonth.toISOString().slice(0,7);
+  const lastMonKey=`${lastMonth.getFullYear()}-${String(lastMonth.getMonth()+1).padStart(2,'0')}`;
   const dayOfMonth=now.getDate();
   const daysLastMon=new Date(now.getFullYear(),now.getMonth(),0).getDate();
   const prorateDays=Math.min(dayOfMonth,daysLastMon);
@@ -384,7 +386,6 @@ function renderTrends(trends){
   const now = new Date();
   const dow = (now.getDay()+6)%7;
   const thisMonStart = new Date(now); thisMonStart.setDate(now.getDate()-dow);
-  const twStr = `${thisMonStart.getFullYear()}-${String(thisMonStart.getMonth()+1).padStart(2,'0')}-${String(thisMonStart.getDate()).padStart(2,'0')}`;
   const curMonKey = today().slice(0,7);
   const lastMonth = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const lastMonKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth()+1).padStart(2,'0')}`;
@@ -621,8 +622,7 @@ function renderHeatmap(){
     const normalized = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
     dayMap[normalized] = (dayMap[normalized]||0) + e.amount;
   });
-  console.log('[Heatmap] dayMap keys:', Object.keys(dayMap));
-  console.log('[Heatmap] Total days with data:', Object.keys(dayMap).length);
+
   const vals=Object.values(dayMap).filter(v=>v>0);
   const maxVal=vals.length?Math.max(...vals):1;
   const sortedVals=[...vals].sort((a,b)=>a-b);
@@ -663,7 +663,6 @@ function renderHeatmap(){
   // Build weeks array — compare date strings to avoid DST/time issues
   const weeks = [];
   const cur = new Date(startDate);
-  const generatedDates = [];
   for(let w = 0; w < WEEKS; w++){
     const week = [];
     for(let d = 0; d < 7; d++){
@@ -679,14 +678,11 @@ function renderHeatmap(){
         day:    cur.getDate(),
         future: dateStr > todayStr
       });
-      if(amt > 0) generatedDates.push(dateStr);
       cur.setDate(cur.getDate() + 1);
     }
     weeks.push(week);
   }
-  console.log('[Heatmap] todayStr:', todayStr);
-  console.log('[Heatmap] Dates with matching expenses in grid:', generatedDates);
-  console.log('[Heatmap] Grid start date:', `${startDate.getFullYear()}-${String(startDate.getMonth()+1).padStart(2,'0')}-${String(startDate.getDate()).padStart(2,'0')}`);
+
 
   // Month labels
   let monthLabels='<div style="display:flex;gap:3px;margin-bottom:4px;padding-left:18px">';
@@ -1404,6 +1400,9 @@ function showPinScreen(mode){
     mode==='set'?'Set a new 4-digit PIN':
     mode==='confirm'?'Confirm your PIN':
     'Enter your PIN to continue';
+  // Only show skip button when checking (not when setting/confirming)
+  const skipBtn=document.getElementById('pin-skip-btn');
+  if(skipBtn) skipBtn.style.display = mode==='check' ? 'inline-block' : 'none';
   updatePinDots();
   document.getElementById('pin-error').textContent='';
 }
