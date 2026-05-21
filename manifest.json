@@ -1,7 +1,7 @@
 {
-  "name": "Paisa \u2014 Expense Manager",
+  "name": "Paisa — Expense Manager",
   "short_name": "Paisa",
-  "description": "Personal expense manager \u2014 track every rupee",
+  "description": "Personal expense manager — track every rupee",
   "start_url": "/paisa/",
   "scope": "/paisa/",
   "display": "standalone",
@@ -17,13 +17,25 @@
       "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -33,5 +45,6 @@
       "description": "Quickly log a new expense",
       "url": "/paisa/"
     }
-  ]
+  ],
+  "prefer_related_applications": false
 }

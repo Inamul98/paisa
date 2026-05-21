@@ -1237,7 +1237,18 @@ function updateInstallSection(){
   } else {
     if(btn){ btn.style.display='inline-flex'; btn.textContent='📲 Install Paisa'; btn.disabled=true; btn.style.opacity='0.45'; btn.style.cursor='not-allowed'; }
     if(iosSteps) iosSteps.style.display='none';
-    if(status) status.innerHTML='Not available yet. Visit the site, leave, return after 5 mins — then Install will activate.';
+    if(status) status.innerHTML=`
+      <div style="margin-top:8px;line-height:1.7">
+        <div style="margin-bottom:6px">Chrome requires 2 visits before showing the prompt. Here's how to install right now:</div>
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px 12px;margin-bottom:6px">
+          <strong style="color:var(--text1)">Android Chrome:</strong><br/>
+          Tap the <strong style="color:var(--accent)">⋮ menu</strong> (top right) → tap <strong style="color:var(--accent)">"Add to Home screen"</strong>
+        </div>
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px 12px">
+          <strong style="color:var(--text1)">Desktop Chrome:</strong><br/>
+          Look for the <strong style="color:var(--accent)">⊕ install icon</strong> in the address bar → click it
+        </div>
+      </div>`;
   }
 }
 
