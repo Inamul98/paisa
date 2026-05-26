@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>Paisa — Expense Manager</title>
+<!-- PWA -->
+<meta name="application-name" content="Paisa"/>
+<meta name="description" content="Personal expense manager — track every rupee"/>
+<meta name="theme-color" content="#0a0c0f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Paisa"/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%230a0c0f'/><text x='256' y='340' font-size='280' text-anchor='middle' fill='%2300d4aa' font-family='serif'>₹</text></svg>"/>
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png"/>
+<link rel="manifest" href="manifest.json"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="paisa-styles.css"/>
+</head>
+<body>
+
+<!-- PIN LOCK SCREEN -->
+<div id="pin-screen" style="display:none">
+  <div class="pin-logo">Pai<span>sa</span></div>
+  <div class="pin-sub" id="pin-sub">Enter your PIN to continue</div>
+  <div class="pin-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-keypad">
+    <button class="pin-key" onclick="pinKey('1')">1<span class="pin-key-sub"></span></button>
+    <button class="pin-key" onclick="pinKey('2')">2<span class="pin-key-sub">ABC</span></button>
+    <button class="pin-key" onclick="pinKey('3')">3<span class="pin-key-sub">DEF</span></button>
+    <button class="pin-key" onclick="pinKey('4')">4<span class="pin-key-sub">GHI</span></button>
+    <button class="pin-key" onclick="pinKey('5')">5<span class="pin-key-sub">JKL</span></button>
+    <button class="pin-key" onclick="pinKey('6')">6<span class="pin-key-sub">MNO</span></button>
+    <button class="pin-key" onclick="pinKey('7')">7<span class="pin-key-sub">PQRS</span></button>
+    <button class="pin-key" onclick="pinKey('8')">8<span class="pin-key-sub">TUV</span></button>
+    <button class="pin-key" onclick="pinKey('9')">9<span class="pin-key-sub">WXYZ</span></button>
+    <button class="pin-key" onclick="pinKey('0')" style="grid-column:2">0</button>
+    <button class="pin-key" onclick="pinBackspace()" style="font-size:18px">⌫</button>
+  </div>
+  <div class="pin-error-msg" id="pin-error"></div>
+  <div class="pin-actions">
+    <button class="pin-link" onclick="hidePinScreen()" id="pin-skip-btn" style="display:none">Skip (use without PIN)</button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<div id="chart-tooltip">
+  <div class="tt-label" id="tt-label"></div>
+  <div class="tt-value" id="tt-value"></div>
+  <div class="tt-sub"   id="tt-sub"></div>
+</div>
+
+<div class="app">
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo">Pai<span>sa</span></div>
+  <nav class="nav">
+    <button class="nav-btn active" id="nav-dashboard" onclick="goPage('dashboard')"><span class="nav-icon">📊</span> Dashboard</button>
+    <button class="nav-btn" id="nav-expenses"         onclick="goPage('expenses')"><span class="nav-icon">📋</span> Expenses</button>
+    <button class="nav-btn" id="nav-monthly"          onclick="goPage('monthly')"><span class="nav-icon">📅</span> Monthly</button>
+    <button class="nav-btn" id="nav-settings"         onclick="goPage('settings')"><span class="nav-icon">⚙️</span> Settings</button>
+  </nav>
+  <div class="topbar-actions">
+    <button class="btn-icon-sm" id="theme-btn" title="Toggle theme" onclick="toggleTheme()">🌙</button>
+    <div style="position:relative" id="export-wrap">
+      <button class="btn-icon-sm" title="Export" onclick="toggleExportMenu(event)">⬇️</button>
+      <div id="export-menu" style="display:none;position:absolute;top:44px;right:0;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);box-shadow:var(--shadow);min-width:170px;z-index:500;overflow:hidden">
+        <button onclick="exportData();closeExportMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;color:var(--text1);font-family:var(--font);font-size:13px;cursor:pointer;text-align:left" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='none'">
+          <span style="font-size:16px">📦</span><div><div style="font-weight:500">Export JSON</div><div style="font-size:10px;color:var(--text3)">Full data backup</div></div>
+        </button>
+        <div style="height:1px;background:var(--border)"></div>
+        <button onclick="exportPDF();closeExportMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;color:var(--text1);font-family:var(--font);font-size:13px;cursor:pointer;text-align:left" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='none'">
+          <span style="font-size:16px">📄</span><div><div style="font-weight:500">Export PDF</div><div style="font-size:10px;color:var(--text3)">Analytics report</div></div>
+        </button>
+      </div>
+    </div>
+    <button class="btn-icon-sm" title="Import backup" onclick="openImportModal()">⬆️</button>
+  </div>
+</header>
+
+<!-- ══════ DASHBOARD ══════ -->
+<div class="page active" id="page-dashboard">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub" id="dash-date-sub"></div>
+    </div>
+    <div class="date-range-wrap">
+      <select class="day-select" id="day-range" onchange="onRangeChange()">
+        <option value="currentmonth" selected>Current Month</option>
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="60">Last 60 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="custom">Custom range…</option>
+      </select>
+      <div class="date-range-custom" id="custom-range">
+        <input class="date-input-sm" type="date" id="dash-from"/>
+        <span class="date-range-sep">→</span>
+        <input class="date-input-sm" type="date" id="dash-to"/>
+        <button class="btn-apply" onclick="applyCustomRange()">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="stats-grid">
+    <div class="stat-card" style="--accent-c:#34d399;cursor:pointer;transition:border-color var(--tr),transform var(--tr)" onclick="openDayModal(today())" title="Click to see today's expenses">
+      <div class="stat-card-icon">🌅</div>
+      <div class="stat-card-label">Today Spent <span style="font-size:9px;opacity:0.6;font-weight:400;margin-left:4px">↗ tap</span></div>
+      <div class="stat-card-value c-success" id="s-today">₹0</div>
+      <div class="stat-card-sub" id="s-today-sub">0 transactions</div>
+    </div>
+    <div class="stat-card" style="--accent-c:var(--accent)">
+      <div class="stat-card-icon">💰</div>
+      <div class="stat-card-label">Total Spent</div>
+      <div class="stat-card-value" id="s-total">₹0</div>
+      <div class="stat-card-sub" id="s-total-sub">in selected period</div>
+    </div>
+    <div class="stat-card" style="--accent-c:var(--warning)">
+      <div class="stat-card-icon">📈</div>
+      <div class="stat-card-label">Daily Average</div>
+      <div class="stat-card-value" id="s-avg">₹0</div>
+      <div class="stat-card-sub" id="s-avg-sub">per day</div>
+    </div>
+    <div class="stat-card" style="--accent-c:var(--accent2)">
+      <div class="stat-card-icon">🏷️</div>
+      <div class="stat-card-label">Top Category</div>
+      <div class="stat-card-value" id="s-topcat" style="font-size:16px">—</div>
+      <div class="stat-card-sub" id="s-topcat-sub">—</div>
+    </div>
+    <div class="stat-card" style="--accent-c:var(--accent4)">
+      <div class="stat-card-icon">💳</div>
+      <div class="stat-card-label">Transactions</div>
+      <div class="stat-card-value" id="s-count">0</div>
+      <div class="stat-card-sub" id="s-count-sub">expenses logged</div>
+    </div>
+  </div>
+
+  <!-- Spending Trends -->
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+    <span style="font-size:12px;color:var(--text3)">Trends:</span>
+    <span style="font-size:12px;color:var(--text2)">This week</span>
+    <span class="trend-pill" id="trend-week-pill" style="display:none"></span>
+    <span style="font-size:12px;color:var(--text3)">vs last week</span>
+    <span style="font-size:11px;color:var(--border2)">|</span>
+    <span style="font-size:12px;color:var(--text2)">This month</span>
+    <span class="trend-pill" id="trend-month-pill" style="display:none"></span>
+    <span style="font-size:12px;color:var(--text3)">vs last month</span>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div><div class="chart-card-title">Spending Trend</div><div class="chart-card-sub" id="trend-sub">Daily expenses</div></div>
+      </div>
+      <div class="canvas-wrap" style="height:200px"><canvas id="bar-chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div><div class="chart-card-title">By Category</div><div class="chart-card-sub">Tap slice or legend for details</div></div>
+      </div>
+      <div class="donut-wrap">
+        <div class="donut-canvas-wrap">
+          <canvas id="donut-chart" width="160" height="160"></canvas>
+          <div class="donut-center"><div class="donut-center-val" id="donut-center-val">₹0</div><div class="donut-center-lbl">total</div></div>
+        </div>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment + Insights -->
+  <div class="charts-row" style="margin-bottom:18px">
+    <div class="chart-card">
+      <div class="chart-card-header"><div class="chart-card-title">Payment Methods</div></div>
+      <div class="canvas-wrap" style="height:160px"><canvas id="pay-chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header"><div class="chart-card-title">Quick Insights</div></div>
+      <div id="insights-list" style="display:flex;flex-direction:column;gap:10px;margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- Budget Progress -->
+  <div id="budget-section" style="display:none;margin-bottom:24px">
+    <div class="budget-card">
+      <div class="budget-card-header">
+        <div class="chart-card-title">📊 Budget Tracker — <span id="budget-month-label" style="color:var(--accent)"></span></div>
+        <button class="btn-sm" onclick="goPage('settings')">Manage →</button>
+      </div>
+      <div id="budget-bars"></div>
+    </div>
+  </div>
+
+  <!-- Forecast + Top 5 -->
+  <div class="charts-row" style="margin-bottom:24px">
+    <div class="chart-card" id="forecast-card"></div>
+    <div class="chart-card">
+      <div class="chart-card-header"><div class="chart-card-title">Spending Trends</div></div>
+      <div id="trends-detail" style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+        <div id="trends-week-detail"></div>
+        <div id="trends-month-detail"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 5 -->
+  <div id="top5-section" style="margin-bottom:24px"></div>
+
+  <!-- Heatmap -->
+  <div id="heatmap-section" style="margin-bottom:24px"></div>
+
+  <!-- Recent -->
+  <div class="recent-card">
+    <div class="recent-card-header">
+      <div style="font-size:14px;font-weight:600">Recent Expenses</div>
+      <button class="btn-sm" onclick="goPage('expenses')">View all →</button>
+    </div>
+    <div id="recent-list"></div>
+  </div>
+</div>
+
+<!-- ══════ EXPENSES ══════ -->
+<div class="page" id="page-expenses">
+  <div class="page-header">
+    <div><div class="page-title">All Expenses</div><div class="page-sub" id="exp-count-sub">0 entries</div></div>
+  </div>
+  <div class="filters-bar">
+    <div class="filter-group" style="flex:1;min-width:160px">
+      <div class="filter-label">Search</div>
+      <input class="filter-input" id="f-search" placeholder="Search expenses…" oninput="renderExpenses()"/>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Category</div>
+      <select class="filter-select" id="f-cat" onchange="renderExpenses()"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Payment</div>
+      <select class="filter-select" id="f-pay" onchange="renderExpenses()">
+        <option value="">All</option>
+        <option>UPI</option><option>Cash</option>
+        <option>Credit Card</option><option>Debit Card</option><option>Bank Transfer</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">From</div>
+      <input class="filter-input" type="date" id="f-from" onchange="renderExpenses()"/>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">To</div>
+      <input class="filter-input" type="date" id="f-to" onchange="renderExpenses()"/>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Min ₹</div>
+      <input class="filter-input" type="number" id="f-min" placeholder="0" oninput="renderExpenses()" style="width:80px"/>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Max ₹</div>
+      <input class="filter-input" type="number" id="f-max" placeholder="∞" oninput="renderExpenses()" style="width:80px"/>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-sm" onclick="clearFilters()">Clear</button>
+    </div>
+  </div>
+  <div class="expense-table-wrap">
+    <div class="expense-table-header">
+      <div>Expense</div><div>Category</div><div>Amount</div>
+      <div class="col-date-h">Date</div><div class="col-pay">Payment</div><div></div>
+    </div>
+    <div id="expenses-list"></div>
+  </div>
+</div>
+
+<!-- ══════ MONTHLY ══════ -->
+<div class="page" id="page-monthly">
+  <div class="page-header">
+    <div><div class="page-title">Monthly Summary</div><div class="page-sub">Click a month to see breakdown</div></div>
+  </div>
+  <div class="month-grid" id="month-grid"></div>
+  <div class="month-detail" id="month-detail" style="display:none"></div>
+</div>
+
+<!-- ══════ SETTINGS ══════ -->
+<div class="page" id="page-settings">
+  <div class="page-header">
+    <div><div class="page-title">Settings</div><div class="page-sub">Manage categories, budgets, PIN & data</div></div>
+  </div>
+
+  <!-- Appearance -->
+  <div class="settings-section">
+    <div class="settings-section-title">Appearance</div>
+    <div class="settings-section-sub">Toggle between dark and light mode.</div>
+    <button class="btn-sm primary" onclick="toggleTheme()" style="display:inline-flex;align-items:center;gap:8px">
+      🌗 Toggle Dark / Light Mode
+    </button>
+  </div>
+
+  <!-- Install App -->
+  <div class="settings-section" id="install-app-section" style="display:none">
+    <div class="settings-section-title">📲 Install App</div>
+    <div class="settings-section-sub">Install Paisa on your home screen for quick access — works like a native app, no App Store needed.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-sm primary" id="settings-install-btn" onclick="triggerInstall()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;font-size:13px">
+        📲 Install Paisa
+      </button>
+      <div id="install-status" style="font-size:12px;color:var(--text3)"></div>
+    </div>
+    <!-- iOS instructions shown separately -->
+    <div id="ios-install-steps" style="display:none;margin-top:14px;background:var(--bg2);border-radius:var(--r);padding:14px 16px">
+      <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:10px">How to install on iPhone / iPad:</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2)">
+          <span style="background:var(--accent);color:#0a0c0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">1</span>
+          Tap the <strong style="color:var(--text1)">Share</strong> button <span style="font-size:16px">⎙</span> at the bottom of Safari
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2)">
+          <span style="background:var(--accent);color:#0a0c0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">2</span>
+          Scroll down and tap <strong style="color:var(--text1)">"Add to Home Screen"</strong>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2)">
+          <span style="background:var(--accent);color:#0a0c0f;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">3</span>
+          Tap <strong style="color:var(--text1)">"Add"</strong> — Paisa will appear on your home screen
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text3)">⚠️ Must be opened in Safari — Chrome on iOS does not support installation.</div>
+    </div>
+  </div>
+
+  <!-- Budget -->
+  <div class="settings-section">
+    <div class="settings-section-title">Monthly Budgets</div>
+    <div class="settings-section-sub">Set spending limits. Leave blank for no limit. Budgets reset on the 1st of each month.</div>
+    <div id="budget-inputs"></div>
+  </div>
+
+  <!-- PIN Lock -->
+  <div class="settings-section">
+    <div class="settings-section-title">PIN Lock</div>
+    <div class="settings-section-sub">Protect your financial data with a 4-digit PIN on app open.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-sm primary" onclick="showPinScreen('set')">🔒 Set / Change PIN</button>
+      <button class="btn-sm danger"  onclick="removePinLock()" id="remove-pin-btn">Remove PIN</button>
+    </div>
+  </div>
+
+  <!-- Categories -->
+  <div class="settings-section">
+    <div class="settings-section-title">Categories</div>
+    <div class="settings-section-sub">⠿ Drag chips to reorder — order reflects in expense entry dropdown.</div>
+    <div class="chip-list" id="cat-chip-list"></div>
+    <div class="add-chip-row">
+      <input class="add-chip-input" id="cat-emoji" placeholder="😀" maxlength="2" style="width:52px;text-align:center;font-size:20px"/>
+      <input class="add-chip-input" id="cat-name-input" placeholder="Category name" onkeydown="if(event.key==='Enter')addCategory()"/>
+      <button class="btn-sm primary" onclick="addCategory()">Add</button>
+    </div>
+  </div>
+
+  <!-- Payment Methods -->
+  <div class="settings-section">
+    <div class="settings-section-title">Payment Methods</div>
+    <div class="settings-section-sub">Manage your payment methods.</div>
+    <div class="chip-list" id="pay-chip-list"></div>
+    <div class="add-chip-row">
+      <input class="add-chip-input" id="pay-name-input" placeholder="Payment method name" onkeydown="if(event.key==='Enter')addPayMethod()"/>
+      <button class="btn-sm primary" onclick="addPayMethod()">Add</button>
+    </div>
+  </div>
+
+  <!-- Data -->
+  <div class="settings-section">
+    <div class="settings-section-title">Data Management</div>
+    <div class="settings-section-sub">Export a backup or import a previous one. Your data stays in your browser.</div>
+    <div class="backup-row">
+      <button class="backup-btn2 export" onclick="exportData()">⬇️ Export JSON Backup</button>
+      <button class="backup-btn2 export" onclick="exportPDF()" style="border-color:rgba(124,106,245,0.4)" onmouseover="this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)';this.style.background='rgba(124,106,245,0.06)'" onmouseout="this.style.borderColor='rgba(124,106,245,0.4)';this.style.color='';this.style.background=''">📄 Export PDF Report</button>
+      <button class="backup-btn2 import" onclick="openImportModal()">⬆️ Import Backup</button>
+      <button class="backup-btn2 danger" onclick="resetAllData()">🗑️ Reset All Data</button>
+    </div>
+    <div class="last-bk" id="last-bk-display"><span>⚠</span><span id="last-bk-text">Never backed up</span></div>
+  </div>
+</div>
+</div><!-- end .app -->
+
+<button class="fab" onclick="openAddExpense()" title="Add expense (Ctrl+K)">＋</button>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <button class="bnav-btn active" id="bnav-dashboard" onclick="goPage('dashboard')"><span class="bnav-icon">📊</span>Dashboard</button>
+  <button class="bnav-btn" id="bnav-expenses"         onclick="goPage('expenses')"><span class="bnav-icon">📋</span>Expenses</button>
+  <button class="bnav-btn" id="bnav-monthly"          onclick="goPage('monthly')"><span class="bnav-icon">📅</span>Monthly</button>
+  <button class="bnav-btn" id="bnav-settings"         onclick="goPage('settings')"><span class="bnav-icon">⚙️</span>Settings</button>
+</div>
+
+<!-- ADD/EDIT EXPENSE MODAL -->
+<div class="modal-overlay" id="expense-modal" onclick="if(event.target===this)closeExpenseModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="exp-modal-title">Add Expense</div>
+      <button class="btn-icon-sm" onclick="closeExpenseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="amount-display">
+        <span class="amount-prefix">₹</span>
+        <input class="amount-input-big" id="f-amount" type="number" placeholder="0" min="0" step="0.01" inputmode="decimal"/>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><label class="form-label">Category *</label><select class="form-select" id="f-category"></select></div>
+        <div class="form-group"><label class="form-label">Payment Method</label><select class="form-select" id="f-payment"></select></div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="f-date"/></div>
+        <div class="form-group"><label class="form-label">Time (optional)</label><input class="form-input" type="time" id="f-time"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="form-textarea" id="f-notes" placeholder="e.g. Swiggy dinner, Petrol at HP…"></textarea></div>
+      <div class="toggle-row2">
+        <div><div class="toggle-label">🔁 Recurring expense</div><div class="toggle-sub2">Auto-logs on schedule</div></div>
+        <label class="sw"><input type="checkbox" id="f-recurring"/><span class="sw-slider"></span></label>
+      </div>
+      <div class="form-group" id="recur-freq-row" style="display:none">
+        <label class="form-label">Frequency</label>
+        <select class="form-select" id="f-recur-freq">
+          <option value="monthly">Monthly (same date)</option>
+          <option value="weekly">Weekly (same day)</option>
+          <option value="daily">Daily</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost2" onclick="closeExpenseModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveExpense()">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAY DETAIL MODAL -->
+<div class="modal-overlay" id="day-modal" onclick="if(event.target===this)closeDayModal()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="day-modal-title">Day Detail</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-top:3px" id="day-modal-sub"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn-sm" id="day-modal-add" onclick="addExpenseForDay()" style="font-size:12px;padding:6px 12px;border-color:rgba(0,212,170,0.3);color:var(--accent)">＋ Add</button>
+        <button class="btn-icon-sm" onclick="closeDayModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="gap:0;padding:0">
+      <div id="day-modal-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)"></div>
+      <div id="day-modal-cats" style="padding:16px 20px;border-bottom:1px solid var(--border)"></div>
+      <div id="day-modal-list" style="padding:0 20px 16px;max-height:320px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORY DETAIL MODAL -->
+<div class="modal-overlay" id="cat-modal" onclick="if(event.target===this)closeCatModal()">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="cat-modal-title">Category</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-top:3px" id="cat-modal-sub"></div>
+      </div>
+      <button class="btn-icon-sm" onclick="closeCatModal()">✕</button>
+    </div>
+    <div class="modal-body" style="gap:0;padding:0">
+      <div id="cat-modal-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)"></div>
+      <div id="cat-modal-list" style="padding:16px 20px;max-height:420px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="import-modal" onclick="if(event.target===this)closeImportModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⬆️ Import Backup</div>
+      <button class="btn-icon-sm" onclick="closeImportModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:var(--r);padding:10px 13px;font-size:12px;color:var(--warning)">
+        ⚠️ Import will <strong>merge</strong> with existing data. Duplicates are skipped.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Select backup file</label>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('bk-file').click()"
+          ondragover="dzOver(event)" ondragleave="dzLeave()" ondrop="dzDrop(event)">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-title" id="dz-title">Click or drag &amp; drop</div>
+          <div class="drop-zone-sub">Paisa .json backup files</div>
+        </div>
+        <input type="file" id="bk-file" accept=".json" style="display:none" onchange="bkFileSelect(event)"/>
+        <div class="import-preview" id="import-preview"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost2" onclick="closeImportModal()">Cancel</button>
+      <button class="btn-primary" id="bk-confirm-btn" onclick="confirmImport()" disabled style="opacity:.4;cursor:not-allowed">Import</button>
+    </div>
+  </div>
+</div>
+
+<script src="paisa-app.js"></script>
+<script>
+/* ── PWA — Service Worker + Install Prompt ── */
+(function initPWA(){
+
+  /* ── Register Service Worker from sw.js ── */
+  if('serviceWorker' in navigator){
+    const proto = location.protocol, host = location.hostname;
+    const supported = proto==='https:' || (proto==='http:' && (host==='localhost'||host==='127.0.0.1'));
+    if(supported){
+      navigator.serviceWorker.register('./sw.js', { scope: './' })
+        .then(r => console.log('[Paisa] SW registered:', r.scope))
+        .catch(e => console.log('[Paisa] SW failed:', e.message));
+    } else {
+      console.log('[Paisa] SW skipped — requires https/localhost');
+    }
+  }
+
+  /* ── Android/Chrome Install Banner ── */
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    // Store on window — accessible from anywhere, never goes stale
+    window._paisaDip = e;
+    // Show banner immediately — no delay so event stays fresh
+    showInstallBanner();
+    // Update settings install section if already open
+    if(typeof updateInstallSection === 'function') updateInstallSection();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    window._paisaDip = null;
+    const b = document.getElementById('install-banner');
+    if(b) b.remove();
+    if(typeof showToast === 'function') showToast('🎉', 'Paisa installed! Find it on your home screen.');
+    if(typeof updateInstallSection === 'function') updateInstallSection();
+  });
+
+  function showInstallBanner(){
+    if(document.getElementById('install-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'install-banner';
+    banner.style.cssText = [
+      'position:fixed',
+      window.innerWidth<=640 ? 'bottom:80px' : 'bottom:24px',
+      'left:50%',
+      'transform:translateX(-50%)',
+      'background:linear-gradient(135deg,#0d1117,#1a1e28)',
+      'border:1px solid rgba(0,212,170,.35)',
+      'border-radius:16px',
+      'padding:14px 18px',
+      'display:flex',
+      'align-items:center',
+      'gap:12px',
+      'box-shadow:0 8px 32px rgba(0,0,0,.6)',
+      'z-index:9998',
+      'max-width:340px',
+      'width:calc(100% - 32px)',
+      'animation:slideUpBanner .3s cubic-bezier(.4,0,.2,1) both'
+    ].join(';');
+    banner.innerHTML = `
+      <style>
+        @keyframes slideUpBanner{
+          from{opacity:0;transform:translateX(-50%) translateY(20px)}
+          to  {opacity:1;transform:translateX(-50%) translateY(0)}
+        }
+      </style>
+      <div style="width:42px;height:42px;background:linear-gradient(135deg,#00d4aa,#00a88a);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;font-weight:700;color:#0a0c0f">₹</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#f0f2f7">Install Paisa</div>
+        <div style="font-size:11px;color:#8b92a5;margin-top:2px">Add to home screen for quick access</div>
+      </div>
+      <button id="pwa-install-btn" style="background:linear-gradient(135deg,#00d4aa,#00a88a);border:none;border-radius:9px;color:#0a0c0f;font-size:12px;font-weight:700;padding:9px 16px;cursor:pointer;white-space:nowrap;flex-shrink:0">Install</button>
+      <button id="pwa-dismiss-btn" style="background:none;border:none;color:#555c70;cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0">×</button>
+    `;
+    document.body.appendChild(banner);
+
+    // Install button — always read from window._paisaDip (never stale)
+    document.getElementById('pwa-install-btn').addEventListener('click', function() {
+      const prompt = window._paisaDip;
+      if(!prompt){
+        alert('Install prompt expired. Please reload the page and try again.');
+        return;
+      }
+      prompt.prompt();
+      prompt.userChoice.then(function(result) {
+        if(result.outcome === 'accepted'){
+          if(typeof showToast === 'function') showToast('🎉', 'Installing Paisa…');
+        }
+        window._paisaDip = null;
+        const b = document.getElementById('install-banner');
+        if(b) b.remove();
+      });
+    });
+
+    // Dismiss button
+    document.getElementById('pwa-dismiss-btn').addEventListener('click', function() {
+      const b = document.getElementById('install-banner');
+      if(b) b.remove();
+    });
+  }
+
+
+
+  /* ── iOS Safari Hint ── */
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone;
+  if(isIOS){
+    setTimeout(() => {
+      const hint = document.createElement('div');
+      hint.style.cssText = `
+        position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+        background:#1a1e28;border:1px solid rgba(0,212,170,.25);
+        border-radius:16px;padding:18px 20px;
+        font-size:13px;color:#8b92a5;text-align:center;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+        z-index:9998;max-width:300px;width:calc(100% - 32px);
+        animation:slideUpBanner .3s ease both;
+      `;
+      hint.innerHTML = `
+        <div style="font-size:28px;margin-bottom:10px">📲</div>
+        <div style="color:#f0f2f7;font-weight:600;font-size:15px;margin-bottom:8px">Install Paisa</div>
+        <div style="line-height:1.7">
+          Tap <strong style="color:#00d4aa">Share</strong>
+          <span style="font-size:15px"> ⎙ </span>
+          then tap<br/>
+          <strong style="color:#00d4aa">"Add to Home Screen"</strong>
+        </div>
+        <button onclick="this.parentElement.remove()" style="margin-top:14px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);border-radius:9px;color:#00d4aa;font-size:13px;font-weight:500;padding:8px 24px;cursor:pointer;font-family:inherit;width:100%">Got it</button>
+      `;
+      document.body.appendChild(hint);
+      setTimeout(() => hint.remove(), 12000);
+    }, 3500);
+  }
+
+})();
+</script>
+</body>
+</html>
