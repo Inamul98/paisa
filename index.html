@@ -526,42 +526,46 @@
   }
 
   /* ── Android/Chrome Install Banner ── */
-  let dip = null;
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
-    dip = e;
-    window._paisaDip = e; // expose for settings button
-    // Small delay so user is settled on the page first
-    setTimeout(showInstallBanner, 2500);
-    // Update settings install section
-    updateInstallSection();
+    // Store on window — accessible from anywhere, never goes stale
+    window._paisaDip = e;
+    // Show banner immediately — no delay so event stays fresh
+    showInstallBanner();
+    // Update settings install section if already open
+    if(typeof updateInstallSection === 'function') updateInstallSection();
   });
 
   window.addEventListener('appinstalled', () => {
     window._paisaDip = null;
-    dip = null;
     const b = document.getElementById('install-banner');
     if(b) b.remove();
-    showToast('🎉', 'Paisa installed successfully!');
-    updateInstallSection();
+    if(typeof showToast === 'function') showToast('🎉', 'Paisa installed! Find it on your home screen.');
+    if(typeof updateInstallSection === 'function') updateInstallSection();
   });
 
   function showInstallBanner(){
     if(document.getElementById('install-banner')) return;
     const banner = document.createElement('div');
     banner.id = 'install-banner';
-    banner.style.cssText = `
-      position:fixed;
-      bottom:${window.innerWidth<=640?'80px':'24px'};
-      left:50%;transform:translateX(-50%);
-      background:linear-gradient(135deg,#0d1117,#1a1e28);
-      border:1px solid rgba(0,212,170,.35);
-      border-radius:16px;padding:14px 18px;
-      display:flex;align-items:center;gap:12px;
-      box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(0,212,170,.08);
-      z-index:9998;max-width:340px;width:calc(100% - 32px);
-      animation:slideUpBanner .3s cubic-bezier(.4,0,.2,1) both;
-    `;
+    banner.style.cssText = [
+      'position:fixed',
+      window.innerWidth<=640 ? 'bottom:80px' : 'bottom:24px',
+      'left:50%',
+      'transform:translateX(-50%)',
+      'background:linear-gradient(135deg,#0d1117,#1a1e28)',
+      'border:1px solid rgba(0,212,170,.35)',
+      'border-radius:16px',
+      'padding:14px 18px',
+      'display:flex',
+      'align-items:center',
+      'gap:12px',
+      'box-shadow:0 8px 32px rgba(0,0,0,.6)',
+      'z-index:9998',
+      'max-width:340px',
+      'width:calc(100% - 32px)',
+      'animation:slideUpBanner .3s cubic-bezier(.4,0,.2,1) both'
+    ].join(';');
     banner.innerHTML = `
       <style>
         @keyframes slideUpBanner{
@@ -575,19 +579,32 @@
         <div style="font-size:11px;color:#8b92a5;margin-top:2px">Add to home screen for quick access</div>
       </div>
       <button id="pwa-install-btn" style="background:linear-gradient(135deg,#00d4aa,#00a88a);border:none;border-radius:9px;color:#0a0c0f;font-size:12px;font-weight:700;padding:9px 16px;cursor:pointer;white-space:nowrap;flex-shrink:0">Install</button>
-      <button onclick="this.closest('#install-banner').remove()" style="background:none;border:none;color:#555c70;cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0">×</button>
+      <button id="pwa-dismiss-btn" style="background:none;border:none;color:#555c70;cursor:pointer;font-size:20px;line-height:1;padding:4px;flex-shrink:0">×</button>
     `;
     document.body.appendChild(banner);
-    document.getElementById('pwa-install-btn').addEventListener('click', () => {
-      if(!dip) return;
-      dip.prompt();
-      dip.userChoice.then(result => {
+
+    // Install button — always read from window._paisaDip (never stale)
+    document.getElementById('pwa-install-btn').addEventListener('click', function() {
+      const prompt = window._paisaDip;
+      if(!prompt){
+        alert('Install prompt expired. Please reload the page and try again.');
+        return;
+      }
+      prompt.prompt();
+      prompt.userChoice.then(function(result) {
         if(result.outcome === 'accepted'){
-          showToast('🎉', 'Paisa installed! Find it on your home screen.');
+          if(typeof showToast === 'function') showToast('🎉', 'Installing Paisa…');
         }
-        banner.remove();
-        dip = null;
+        window._paisaDip = null;
+        const b = document.getElementById('install-banner');
+        if(b) b.remove();
       });
+    });
+
+    // Dismiss button
+    document.getElementById('pwa-dismiss-btn').addEventListener('click', function() {
+      const b = document.getElementById('install-banner');
+      if(b) b.remove();
     });
   }
 
