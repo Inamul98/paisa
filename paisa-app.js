@@ -959,6 +959,8 @@ function drawPayChart(payTotals){
     ctx.fillText(Math.round(val/total*100)+'%',pad.left+bW+5,y+barH/2+4);
     canvas._bars.push({x:pad.left,y,w:cW,h:barH,val,name,color});
   });
+  canvas.style.cursor='pointer';
+
   canvas.onmousemove=e=>{
     const r=canvas.getBoundingClientRect();
     const mx=e.clientX-r.left,my=e.clientY-r.top;
@@ -966,12 +968,131 @@ function drawPayChart(payTotals){
     if(found){
       document.getElementById('tt-label').textContent=found.name;
       document.getElementById('tt-value').textContent=fmt(found.val);
-      document.getElementById('tt-sub').textContent=Math.round(found.val/total*100)+'% of total';
+      document.getElementById('tt-sub').textContent=Math.round(found.val/total*100)+'% — tap to view transactions';
       tt.style.left=(e.clientX+12)+'px'; tt.style.top=(e.clientY-40)+'px';
       tt.classList.add('show');
     } else tt.classList.remove('show');
   };
   canvas.onmouseleave=()=>tt.classList.remove('show');
+
+  // Click — open payment modal
+  canvas.onclick=e=>{
+    const r=canvas.getBoundingClientRect();
+    const mx=e.clientX-r.left,my=e.clientY-r.top;
+    const found=(canvas._bars||[]).find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
+    if(found){ tt.classList.remove('show'); openPayModal(found.name); }
+  };
+
+  // Touch tap — open payment modal
+  let payTouchMoved=false;
+  canvas.ontouchstart=()=>{ payTouchMoved=false; };
+  canvas.ontouchmove=e=>{
+    payTouchMoved=true;
+    const r=canvas.getBoundingClientRect(),t=e.touches[0];
+    const mx=t.clientX-r.left,my=t.clientY-r.top;
+    const found=(canvas._bars||[]).find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
+    if(found){
+      document.getElementById('tt-label').textContent=found.name;
+      document.getElementById('tt-value').textContent=fmt(found.val);
+      document.getElementById('tt-sub').textContent=Math.round(found.val/total*100)+'%';
+      tt.style.left=(t.clientX+12)+'px'; tt.style.top=(t.clientY-50)+'px';
+      tt.classList.add('show');
+    }
+  };
+  canvas.ontouchend=e=>{
+    tt.classList.remove('show');
+    if(!payTouchMoved){
+      const r=canvas.getBoundingClientRect(),t=e.changedTouches[0];
+      const mx=t.clientX-r.left,my=t.clientY-r.top;
+      const found=(canvas._bars||[]).find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
+      if(found) openPayModal(found.name);
+    }
+  };
+}
+
+/* ── Payment Modal ── */
+function openPayModal(payName){
+  const {from,to} = getDashRange();
+  const payExp = expenses
+    .filter(e => e.payment === payName && e.date >= from && e.date <= to)
+    .sort((a,b) => b.date.localeCompare(a.date)||(b.time||'').localeCompare(a.time||''));
+
+  const total   = payExp.reduce((s,e)=>s+e.amount, 0);
+  const avgTxn  = payExp.length ? total/payExp.length : 0;
+  const payColors = {'UPI':'#00d4aa','Cash':'#f59e0b','Credit Card':'#7c6af5','Debit Card':'#60a5fa','Bank Transfer':'#10b981'};
+  const color   = payColors[payName] || COLORS[0];
+
+  document.getElementById('pay-modal-title').textContent = payName;
+  document.getElementById('pay-modal-sub').textContent   = `${from} → ${to} · ${payExp.length} transaction${payExp.length!==1?'s':''}`;
+
+  // Stats strip
+  document.getElementById('pay-modal-stats').innerHTML = `
+    <div class="day-stat-cell">
+      <div class="day-stat-val" style="color:${color}">${fmt(total)}</div>
+      <div class="day-stat-lbl">Total Spent</div>
+    </div>
+    <div class="day-stat-cell">
+      <div class="day-stat-val">${payExp.length}</div>
+      <div class="day-stat-lbl">Transactions</div>
+    </div>
+    <div class="day-stat-cell">
+      <div class="day-stat-val">${fmt(avgTxn)}</div>
+      <div class="day-stat-lbl">Avg / Txn</div>
+    </div>`;
+
+  const listEl = document.getElementById('pay-modal-list');
+  if(!payExp.length){
+    listEl.innerHTML = `<div style="text-align:center;padding:32px 0;color:var(--text3);font-size:13px">No transactions via <b>${payName}</b> in this period.</div>`;
+  } else {
+    // Group by date
+    const byDate = {};
+    payExp.forEach(e=>{ if(!byDate[e.date]) byDate[e.date]=[]; byDate[e.date].push(e); });
+    listEl.innerHTML = Object.keys(byDate).sort((a,b)=>b.localeCompare(a)).map(dateStr=>{
+      const d       = new Date(dateStr+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+      const dayTotal= byDate[dateStr].reduce((s,e)=>s+e.amount,0);
+      const rows    = byDate[dateStr].map(e=>{
+        const catColor = getCatColor(e.category);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+          <div style="width:32px;height:32px;border-radius:8px;background:${catColor}18;color:${catColor};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${getCatEmoji(e.category)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.notes||e.category)}</div>
+            <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-top:1px;display:flex;align-items:center;gap:6px">
+              <span class="badge badge-${e.category.toLowerCase().replace(/ /g,'-')}" style="background:${catColor}18;color:${catColor}">${e.category}</span>
+              ${e.time?`<span>${e.time}</span>`:''}
+              ${e.recurring?'<span class="badge badge-recurring">🔁</span>':''}
+            </div>
+          </div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:600;color:${color};flex-shrink:0">${fmt(e.amount)}</div>
+          <div style="display:flex;gap:3px;flex-shrink:0">
+            <button class="btn-icon-sm" style="width:26px;height:26px;font-size:12px" onclick="closePayModal();openEditExpense('${e.id}')">✏️</button>
+            <button class="btn-icon-sm" style="width:26px;height:26px;font-size:12px" onclick="deletePayExpense('${e.id}','${esc(payName)}')">🗑</button>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 6px;position:sticky;top:0;background:var(--bg1);z-index:1">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text3)">${d}</span>
+          <span style="font-size:12px;font-family:var(--font-mono);color:var(--text2)">${fmt(dayTotal)}</span>
+        </div>
+        ${rows}
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('pay-modal').classList.add('open');
+}
+
+function closePayModal(){
+  document.getElementById('pay-modal').classList.remove('open');
+}
+
+function deletePayExpense(id, payName){
+  if(!confirm('Delete this expense?')) return;
+  expenses = expenses.filter(e=>e.id!==id);
+  save();
+  showToast('🗑️','Expense deleted.');
+  if(currentPage==='dashboard') renderDashboard();
+  openPayModal(payName);
 }
 
 /* ── Insights ── */
@@ -1593,7 +1714,7 @@ function showToast(icon,msg){
    KEYBOARD / RESIZE / INIT
 ══════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){ closeExpenseModal(); closeImportModal(); closeDayModal(); closeCatModal(); }
+  if(e.key==='Escape'){ closeExpenseModal(); closeImportModal(); closeDayModal(); closeCatModal(); closePayModal(); }
   if((e.metaKey||e.ctrlKey)&&e.key==='k'){ e.preventDefault(); openAddExpense(); }
 });
 window.addEventListener('resize',()=>{ if(currentPage==='dashboard') renderDashboard(); });
