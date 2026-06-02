@@ -364,18 +364,16 @@ function calcTrends(){
   const lastWeekTotal=expenses.filter(e=>e.date>=lwStr&&e.date<=lwEndStr).reduce((s,e)=>s+e.amount,0);
   const weekPct = lastWeekTotal>0 ? ((thisWeekTotal-lastWeekTotal)/lastWeekTotal*100) : null;
 
-  // Month: this month vs last month (prorated by days elapsed)
-  const curMonKey=td.slice(0,7);
-  const lastMonth=new Date(now.getFullYear(),now.getMonth()-1,1);
-  const lastMonKey=`${lastMonth.getFullYear()}-${String(lastMonth.getMonth()+1).padStart(2,'0')}`;
-  const dayOfMonth=now.getDate();
-  const daysLastMon=new Date(now.getFullYear(),now.getMonth(),0).getDate();
-  const prorateDays=Math.min(dayOfMonth,daysLastMon);
-  const lastMonEndProrate=`${lastMonKey}-${String(prorateDays).padStart(2,'0')}`;
+  // Month: this month total vs FULL last month total
+  const curMonKey = td.slice(0,7);
+  const lastMonth  = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth()+1).padStart(2,'0')}`;
+  const dayOfMonth    = now.getDate();
+  const daysInCurMon  = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
 
-  const thisMonTotal=expenses.filter(e=>e.date.startsWith(curMonKey)).reduce((s,e)=>s+e.amount,0);
-  const lastMonTotal=expenses.filter(e=>e.date>=lastMonKey+'-01'&&e.date<=lastMonEndProrate).reduce((s,e)=>s+e.amount,0);
-  const monthPct = lastMonTotal>0 ? ((thisMonTotal-lastMonTotal)/lastMonTotal*100) : null;
+  const thisMonTotal = expenses.filter(e=>e.date.startsWith(curMonKey)).reduce((s,e)=>s+e.amount,0);
+  const lastMonTotal = expenses.filter(e=>e.date.startsWith(lastMonKey)).reduce((s,e)=>s+e.amount,0);
+  const monthPct     = lastMonTotal>0 ? ((thisMonTotal-lastMonTotal)/lastMonTotal*100) : null;
 
   return {weekPct, monthPct, thisWeekTotal, lastWeekTotal, thisMonTotal, lastMonTotal};
 }
@@ -392,7 +390,7 @@ function renderTrends(trends){
   const thisMonName = now.toLocaleDateString('en-IN',{month:'long'});
   const lastMonName = lastMonth.toLocaleDateString('en-IN',{month:'long'});
 
-  function trendBlock(label, current, previous, pct, period1, period2){
+  function trendBlock(label, current, previous, pct, period1, period2, contextNote=''){
     const hasData = previous > 0;
     const arrow   = !hasData ? '—' : pct > 5 ? '▲' : pct < -5 ? '▼' : '~';
     const color   = !hasData ? 'var(--text3)' : pct > 5 ? 'var(--danger)' : pct < -5 ? 'var(--success)' : 'var(--text3)';
@@ -425,20 +423,35 @@ function renderTrends(trends){
             </div>
           </div>
         </div>
-        <div style="font-size:11px;color:${color};display:flex;align-items:center;gap:5px">
+        <div style="font-size:11px;color:${color};display:flex;align-items:center;gap:5px;margin-bottom:${contextNote?'6px':'0'}">
           <span>${arrow !== '—' ? arrow : 'ℹ'}</span>
           <span>${msg}</span>
         </div>
+        ${contextNote ? `<div style="font-size:10px;color:var(--text3);font-family:var(--font-mono);padding:5px 8px;background:var(--bg3);border-radius:6px">📅 ${contextNote}</div>` : ''}
       </div>`;
   }
+
+  const now2        = new Date();
+  const dayOfMon2   = now2.getDate();
+  const daysInCurMon2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0).getDate();
+
+  // Week context: how many days elapsed this week
+  const weekDow2    = (now2.getDay()+6)%7; // Mon=0 Sun=6
+  const daysThisWeek = weekDow2 + 1; // e.g. Tuesday = 2 days elapsed
+  const weekContextNote = `${daysThisWeek} of 7 days this week`;
+
+  // Month context: how many days elapsed this month
+  const monthContextNote = `${thisMonName}: ${dayOfMon2} of ${daysInCurMon2} days · ${lastMonName}: full month`;
 
   el.innerHTML =
     trendBlock('Week over Week',
       trends.thisWeekTotal, trends.lastWeekTotal, trends.weekPct,
-      'This week', 'Last week') +
+      'This week', 'Last week',
+      weekContextNote) +
     trendBlock('Month over Month',
       trends.thisMonTotal, trends.lastMonTotal, trends.monthPct,
-      thisMonName, lastMonName);
+      thisMonName, lastMonName,
+      monthContextNote);
 }
 
 /* ── Budget Section ── */
